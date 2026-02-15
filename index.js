@@ -6,45 +6,47 @@ const fs = require('fs');
 const app = express();
 app.use(express.json());
 
-let sock;
-
-// ⚠️ KTEB NUMERO TA3EK HNA B 213 (Matalan: "213791059501")
 const NUMERO_TA3EK = "213672975420"; 
+let sock;
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     
     sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false, // 🛑 NA7INA L'QR CODE!
+        printQRInTerminal: false,
         logger: pino({ level: "silent" }),
-        browser: ["Mac OS", "Chrome", "121.0.6167.159"] // Nkhad3ouhom b Mac
+        browser: ["Chrome (Linux)", "", ""] // Hna nkhad3ouhom bash ma yfiqouch
     });
 
-    // 🔥 L'HACK TA3 L'PAIRING CODE (8 Hrouf)
+    sock.ev.on('creds.update', saveCreds);
+
     if (!sock.authState.creds.registered) {
+        console.log("⏳ Ntsenaw 8 Thawanir bash l'khet ykoun wajed 100%...");
+        
+        // ⏰ L'Frein ta3 8 seconds bash WhatsApp ma y-blokilnach l'connexion
         setTimeout(async () => {
             try {
-                const code = await sock.requestPairingCode(NUMERO_TA3EK);
+                let code = await sock.requestPairingCode(NUMERO_TA3EK);
+                // Nriglou l'ktiba ta3 l'code bash tban chaba
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                
                 console.log('\n======================================');
                 console.log('🔥 HADA HOWA L\'CODE TA3EK: ' + code);
                 console.log('Roh l WhatsApp -> Appareils connectés -> Lier avec le num de tel');
                 console.log('======================================\n');
             } catch (err) {
-                console.log('❌ Mochkil f l\'Pairing Code: ', err);
+                console.log('❌ Mochkil f l\'Pairing Code: ', err.message);
             }
-        }, 3000);
+        }, 8000); 
     }
-
-    sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
-        
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
             if(shouldReconnect) {
-                console.log('🔴 WhatsApp tqta3, n-reconnecti...');
+                console.log('🔴 WhatsApp tqta3, n-reconnecti chwiya...');
                 setTimeout(() => connectToWhatsApp(), 5000);
             } else {
                 console.log('❌ T-deconnecta. N-fasakh cache...');
