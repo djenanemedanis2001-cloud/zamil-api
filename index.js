@@ -8,7 +8,12 @@ app.use(express.json());
 
 const NUMERO_TA3EK = "213672975420"; 
 let sock;
-let pairingRequestSent = false;
+
+// 1. FASSA7A: N'm7ou l'cache l'qdim qbel ma n'bdaw
+if (fs.existsSync('./auth_info_baileys')) {
+    console.log("🧹 Cleaning old session traces...");
+    fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
+}
 
 async function startZamilSystem() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -19,49 +24,40 @@ async function startZamilSystem() {
         version,
         printQRInTerminal: false,
         logger: pino({ level: "silent" }),
-        browser: ["Windows", "Chrome", "121.0.6167.184"],
-        connectTimeoutMs: 60000,
+        // 2. N'badlou l'identite bach WhatsApp ma y'fiqsh
+        browser: ["Chrome (Official)", "122.0.0.0", "Windows"],
+        connectTimeoutMs: 100000,
         keepAliveIntervalMs: 30000
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update;
+    if (!sock.authState.creds.registered) {
+        console.log("⏳ ANALYSE: Waiting 40s for total network stability...");
         
+        setTimeout(async () => {
+            try {
+                let code = await sock.requestPairingCode(NUMERO_TA3EK);
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                console.log('\n======================================');
+                console.log('🔥 NEW CLEAN CODE: ' + code);
+                console.log('======================================\n');
+            } catch (err) {
+                console.log('❌ Failed: ' + err.message + '. Retrying...');
+                setTimeout(() => startZamilSystem(), 15000);
+            }
+        }, 40000); // 40 seconds bash n'foutou ga3 l'bugs ta3 Render
+    }
+
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             const reason = lastDisconnect?.error?.output?.statusCode;
-            pairingRequestSent = false; // Reset pairing state on close
-            
-            if (reason === 428 || reason === 515) {
-                console.log("⚠️ Conflict detected. Clearing cache and cooling down (15s)...");
-                if (fs.existsSync('./auth_info_baileys')) fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
-                setTimeout(() => startZamilSystem(), 15000);
-            } else if (reason !== DisconnectReason.loggedOut) {
-                setTimeout(() => startZamilSystem(), 5000);
+            if (reason !== DisconnectReason.loggedOut) {
+                setTimeout(() => startZamilSystem(), 10000);
             }
         } else if (connection === 'open') {
-            console.log('\n🚀 MABROUK! ZAMIL SYSTEM IS ONLINE 24/7\n');
-        }
-
-        // Generate pairing code only if not registered and not already sent
-        if (!sock.authState.creds.registered && !pairingRequestSent && connection !== 'close') {
-            pairingRequestSent = true;
-            console.log("🛠️ Tunneling secure... Sabr 30s for IP stability.");
-            
-            setTimeout(async () => {
-                try {
-                    let code = await sock.requestPairingCode(NUMERO_TA3EK);
-                    code = code?.match(/.{1,4}/g)?.join("-") || code;
-                    console.log('\n======================================');
-                    console.log('🔥 CODE DE LIAISON: ' + code);
-                    console.log('======================================\n');
-                } catch (err) {
-                    console.log('❌ Request Failed. Retrying in 20s...');
-                    pairingRequestSent = false;
-                    setTimeout(() => startZamilSystem(), 20000);
-                }
-            }, 30000); 
+            console.log('\n✅ SYSTEM ONLINE - CONNECTION SUCCESS!\n');
         }
     });
 }
@@ -81,4 +77,4 @@ app.post('/send', async (req, res) => {
 app.get('/ping', (req, res) => res.send("ALIVE"));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`System on ${PORT}`));
+app.listen(PORT, () => console.log(`Stable System on ${PORT}`));
