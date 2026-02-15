@@ -9,17 +9,13 @@ app.use(express.json());
 const NUMERO_TA3EK = "213672975420"; 
 let sock;
 
-// 1. FRESH START: N'khad3ouhom b folder jdid ga3
-const SESSION_NAME = 'zamil_session_final';
+// 1. FRESH START: N'm7ou kolsh l'qdim bash ma n'khaltouch l'identite
+if (fs.existsSync('auth_session')) {
+    fs.rmSync('auth_session', { recursive: true, force: true });
+}
 
 async function startZamilSystem() {
-    // N'faskhou l'qdim ida mazalou
-    if (fs.existsSync(SESSION_NAME)) {
-        console.log("🧹 Deep cleaning session...");
-        fs.rmSync(SESSION_NAME, { recursive: true, force: true });
-    }
-
-    const { state, saveCreds } = await useMultiFileAuthState(SESSION_NAME);
+    const { state, saveCreds } = await useMultiFileAuthState('auth_session');
     const { version } = await fetchLatestBaileysVersion();
     
     sock = makeWASocket({
@@ -27,29 +23,30 @@ async function startZamilSystem() {
         version,
         printQRInTerminal: false,
         logger: pino({ level: "silent" }),
-        // 2. N'badlou l'ism b tariqa advanced (Chrome on macOS)
-        browser: ["macOS", "Chrome", "121.0.0.0"],
-        connectTimeoutMs: 120000,
-        keepAliveIntervalMs: 30000
+        // 2. L'HACK: N'banou k'annaho Mobile App machi Browser
+        browser: ["Android", "Chrome", "20.0.04"],
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 15000,
+        generateHighQualityLinkPreview: true
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     if (!sock.authState.creds.registered) {
-        console.log("⏳ Stabilisation (50s)... Khalli l'internet t'ssfa mlih.");
+        console.log("⏳ Stabilisation du réseau... Sabr 45s (Render vs Meta).");
         
         setTimeout(async () => {
             try {
-                let code = await sock.requestPairingCode(NUMERO_TA3EK);
-                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                // N'forcew l'connexion t'koun m-helloula
+                const code = await sock.requestPairingCode(NUMERO_TA3EK);
                 console.log('\n======================================');
-                console.log('🚀 CLEAN CODE FOR STANDARD WHATSAPP: ' + code);
+                console.log('🔥 CODE FINAL (LIER NUMERO): ' + (code?.match(/.{1,4}/g)?.join("-") || code));
                 console.log('======================================\n');
             } catch (err) {
-                console.log('❌ Failed. Retrying in 20s...');
-                setTimeout(() => startZamilSystem(), 20000);
+                console.log('⚠️ Erreur: ' + err.message + '. Resetting in 10s...');
+                setTimeout(() => startZamilSystem(), 10000);
             }
-        }, 50000); // 50 seconds bach n'badlou l'IP reputation
+        }, 45000); 
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -57,16 +54,17 @@ async function startZamilSystem() {
         if (connection === 'close') {
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason !== DisconnectReason.loggedOut) {
-                setTimeout(() => startZamilSystem(), 10000);
+                setTimeout(() => startZamilSystem(), 5000);
             }
         } else if (connection === 'open') {
-            console.log('\n✅ MABROUK! WHATSAPP IS CONNECTED!\n');
+            console.log('\n✅ MABROUK! WHATSAPP ONLINE 24/7\n');
         }
     });
 }
 
 startZamilSystem();
 
+// API Endpoint for Google Sheet
 app.post('/send', async (req, res) => {
     try {
         const { number, message } = req.body;
@@ -80,4 +78,4 @@ app.post('/send', async (req, res) => {
 app.get('/ping', (req, res) => res.send("ALIVE"));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`System on ${PORT}`));
+app.listen(PORT, () => console.log(`Stable API on port ${PORT}`));
