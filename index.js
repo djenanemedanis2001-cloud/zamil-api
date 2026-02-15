@@ -1,5 +1,5 @@
 const express = require('express');
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 
@@ -11,50 +11,50 @@ let sock;
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    const { version } = await fetchLatestBaileysVersion();
     
     sock = makeWASocket({
         auth: state,
+        version,
         printQRInTerminal: false,
         logger: pino({ level: "silent" }),
-        browser: ["Chrome (Linux)", "", ""] // Hna nkhad3ouhom bash ma yfiqouch
+        browser: ["Ubuntu", "Chrome", "110.0.5481.177"],
+        syncFullHistory: false
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     if (!sock.authState.creds.registered) {
-        console.log("⏳ Ntsenaw 8 Thawanir bash l'khet ykoun wajed 100%...");
+        console.log("⏳ Stabilisation du tunnel (15s)... Sabr khouya!");
         
-        // ⏰ L'Frein ta3 8 seconds bash WhatsApp ma y-blokilnach l'connexion
         setTimeout(async () => {
             try {
-                let code = await sock.requestPairingCode(NUMERO_TA3EK);
-                // Nriglou l'ktiba ta3 l'code bash tban chaba
-                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                const code = await sock.requestPairingCode(NUMERO_TA3EK);
+                const formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
                 
                 console.log('\n======================================');
-                console.log('🔥 HADA HOWA L\'CODE TA3EK: ' + code);
-                console.log('Roh l WhatsApp -> Appareils connectés -> Lier avec le num de tel');
+                console.log('🔥 CODE DE LIAISON: ' + formattedCode);
                 console.log('======================================\n');
             } catch (err) {
-                console.log('❌ Mochkil f l\'Pairing Code: ', err.message);
+                console.log('⚠️ Erreur Pairing (Retry in 10s):', err.message);
+                setTimeout(() => connectToWhatsApp(), 10000);
             }
-        }, 8000); 
+        }, 15000); 
     }
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            if(shouldReconnect) {
-                console.log('🔴 WhatsApp tqta3, n-reconnecti chwiya...');
+            const code = (lastDisconnect.error)?.output?.statusCode;
+            if (code !== DisconnectReason.loggedOut) {
+                console.log('🔄 Reconnexion en cours...');
                 setTimeout(() => connectToWhatsApp(), 5000);
             } else {
-                console.log('❌ T-deconnecta. N-fasakh cache...');
                 fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
-                setTimeout(() => connectToWhatsApp(), 3000);
+                connectToWhatsApp();
             }
         } else if(connection === 'open') {
-            console.log('\n✅ MABROUK! WHATSAPP M-CONNECTE 100%\n');
+            console.log('\n✅ MABROUK! WHATSAPP CONNECTE 24/7\n');
         }
     });
 }
@@ -64,18 +64,14 @@ connectToWhatsApp();
 app.post('/send', async (req, res) => {
     try {
         const { number, message } = req.body;
-        if (!number || !message) return res.status(400).send("Khass Numéro wla Message!");
         let cleanNumber = number.toString().replace(/\D/g, '');
         if (cleanNumber.startsWith('0')) cleanNumber = '213' + cleanNumber.substring(1);
-        const jid = cleanNumber + "@s.whatsapp.net";
-        await sock.sendMessage(jid, { text: message });
-        res.send({ status: "success", message: "✅ Message mcha f WhatsApp!" });
-    } catch (error) {
-        res.status(500).send({ status: "error", error: error.toString() });
-    }
+        await sock.sendMessage(cleanNumber + "@s.whatsapp.net", { text: message });
+        res.send({ status: "success" });
+    } catch (e) { res.status(500).send({ error: e.toString() }); }
 });
 
-app.get('/ping', (req, res) => { res.send("PONG! Serveur ZAMIL raho nayed 24/24."); });
+app.get('/ping', (req, res) => res.send("ALIVE"));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => { console.log(`🚀 Serveur raho ymchi f l'Port ${PORT}`); });
+app.listen(PORT, () => console.log(`Server on ${PORT}`));
