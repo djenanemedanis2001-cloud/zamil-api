@@ -9,14 +9,17 @@ app.use(express.json());
 const NUMERO_TA3EK = "213672975420"; 
 let sock;
 
-// 1. FASSA7A: N'm7ou l'cache l'qdim qbel ma n'bdaw
-if (fs.existsSync('./auth_info_baileys')) {
-    console.log("🧹 Cleaning old session traces...");
-    fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
-}
+// 1. FRESH START: N'khad3ouhom b folder jdid ga3
+const SESSION_NAME = 'zamil_session_final';
 
 async function startZamilSystem() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    // N'faskhou l'qdim ida mazalou
+    if (fs.existsSync(SESSION_NAME)) {
+        console.log("🧹 Deep cleaning session...");
+        fs.rmSync(SESSION_NAME, { recursive: true, force: true });
+    }
+
+    const { state, saveCreds } = await useMultiFileAuthState(SESSION_NAME);
     const { version } = await fetchLatestBaileysVersion();
     
     sock = makeWASocket({
@@ -24,29 +27,29 @@ async function startZamilSystem() {
         version,
         printQRInTerminal: false,
         logger: pino({ level: "silent" }),
-        // 2. N'badlou l'identite bach WhatsApp ma y'fiqsh
-        browser: ["Chrome (Official)", "122.0.0.0", "Windows"],
-        connectTimeoutMs: 100000,
+        // 2. N'badlou l'ism b tariqa advanced (Chrome on macOS)
+        browser: ["macOS", "Chrome", "121.0.0.0"],
+        connectTimeoutMs: 120000,
         keepAliveIntervalMs: 30000
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     if (!sock.authState.creds.registered) {
-        console.log("⏳ ANALYSE: Waiting 40s for total network stability...");
+        console.log("⏳ Stabilisation (50s)... Khalli l'internet t'ssfa mlih.");
         
         setTimeout(async () => {
             try {
                 let code = await sock.requestPairingCode(NUMERO_TA3EK);
                 code = code?.match(/.{1,4}/g)?.join("-") || code;
                 console.log('\n======================================');
-                console.log('🔥 NEW CLEAN CODE: ' + code);
+                console.log('🚀 CLEAN CODE FOR STANDARD WHATSAPP: ' + code);
                 console.log('======================================\n');
             } catch (err) {
-                console.log('❌ Failed: ' + err.message + '. Retrying...');
-                setTimeout(() => startZamilSystem(), 15000);
+                console.log('❌ Failed. Retrying in 20s...');
+                setTimeout(() => startZamilSystem(), 20000);
             }
-        }, 40000); // 40 seconds bash n'foutou ga3 l'bugs ta3 Render
+        }, 50000); // 50 seconds bach n'badlou l'IP reputation
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -57,7 +60,7 @@ async function startZamilSystem() {
                 setTimeout(() => startZamilSystem(), 10000);
             }
         } else if (connection === 'open') {
-            console.log('\n✅ SYSTEM ONLINE - CONNECTION SUCCESS!\n');
+            console.log('\n✅ MABROUK! WHATSAPP IS CONNECTED!\n');
         }
     });
 }
@@ -77,4 +80,4 @@ app.post('/send', async (req, res) => {
 app.get('/ping', (req, res) => res.send("ALIVE"));
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Stable System on ${PORT}`));
+app.listen(PORT, () => console.log(`System on ${PORT}`));
