@@ -8,35 +8,46 @@ app.use(express.json());
 
 let sock;
 
+// ⚠️ KTEB NUMERO TA3EK HNA B 213 (Matalan: "213791059501")
+const NUMERO_TA3EK = "213672975420"; 
+
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     
     sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true,
+        printQRInTerminal: false, // 🛑 NA7INA L'QR CODE!
         logger: pino({ level: "silent" }),
-        browser: ["ZamilSystem", "Chrome", "1.0.0"] // 🔥 L'Hack hna: nkhad3ou Meta
+        browser: ["Mac OS", "Chrome", "121.0.6167.159"] // Nkhad3ouhom b Mac
     });
+
+    // 🔥 L'HACK TA3 L'PAIRING CODE (8 Hrouf)
+    if (!sock.authState.creds.registered) {
+        setTimeout(async () => {
+            try {
+                const code = await sock.requestPairingCode(NUMERO_TA3EK);
+                console.log('\n======================================');
+                console.log('🔥 HADA HOWA L\'CODE TA3EK: ' + code);
+                console.log('Roh l WhatsApp -> Appareils connectés -> Lier avec le num de tel');
+                console.log('======================================\n');
+            } catch (err) {
+                console.log('❌ Mochkil f l\'Pairing Code: ', err);
+            }
+        }, 3000);
+    }
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        const { connection, lastDisconnect } = update;
         
-        if (qr) {
-            console.log('\n======================================');
-            console.log('📸 SCANNI HAD L QR CODE BEL KHAF 👇👇👇');
-            console.log('======================================\n');
-        }
-
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            
             if(shouldReconnect) {
-                console.log('🔴 WhatsApp tqta3, n-reconnecti f 3 tawanir...');
-                setTimeout(() => connectToWhatsApp(), 3000); // ⏰ Frein ta3 3 secondes
+                console.log('🔴 WhatsApp tqta3, n-reconnecti...');
+                setTimeout(() => connectToWhatsApp(), 5000);
             } else {
-                console.log('❌ L\'compte t-deconnecta. Lazem n-fasakh l\'cache w n3awd.');
+                console.log('❌ T-deconnecta. N-fasakh cache...');
                 fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
                 setTimeout(() => connectToWhatsApp(), 3000);
             }
@@ -52,10 +63,8 @@ app.post('/send', async (req, res) => {
     try {
         const { number, message } = req.body;
         if (!number || !message) return res.status(400).send("Khass Numéro wla Message!");
-        
         let cleanNumber = number.toString().replace(/\D/g, '');
         if (cleanNumber.startsWith('0')) cleanNumber = '213' + cleanNumber.substring(1);
-        
         const jid = cleanNumber + "@s.whatsapp.net";
         await sock.sendMessage(jid, { text: message });
         res.send({ status: "success", message: "✅ Message mcha f WhatsApp!" });
@@ -64,11 +73,7 @@ app.post('/send', async (req, res) => {
     }
 });
 
-app.get('/ping', (req, res) => {
-    res.send("PONG! Serveur ZAMIL raho nayed 24/24.");
-});
+app.get('/ping', (req, res) => { res.send("PONG! Serveur ZAMIL raho nayed 24/24."); });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-    console.log(`🚀 Serveur raho ymchi f l'Port ${PORT}`);
-});
+app.listen(PORT, () => { console.log(`🚀 Serveur raho ymchi f l'Port ${PORT}`); });
